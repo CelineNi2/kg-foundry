@@ -1,0 +1,34 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix schema: <http://schema.org/> .
+@prefix kg: <http://kg-foundry.com/schema/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+kg:EntityShape
+    a sh:NodeShape ;
+    sh:targetClass kg:Entity ;
+    sh:property [
+        sh:path kg:name ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:message "Entity must have a name." ;
+    ] ;
+    sh:property [
+        sh:path kg:type ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:message "Entity must have a type." ;
+    ] .
+
+kg:RelationShape
+    a sh:NodeShape ;
+    sh:targetClass kg:Relation ;
+    sh:property [
+        sh:path kg:source ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path kg:target ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+    ] .

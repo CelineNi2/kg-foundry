@@ -1,0 +1,14 @@
+langchain
+langchain-community
+langchain-openai
+pypdf
+instructor
+pydantic
+neo4j
+python-dotenv
+fastapi
+uvicorn
+pytest
+pyshacl
+rdflib
+python-multipart
