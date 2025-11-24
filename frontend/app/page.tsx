@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import GraphVisualization from "@/components/GraphVisualization";
+import { useState, useMemo } from "react";
+import dynamic from 'next/dynamic';
+import ControlPanel, { FilterState } from "@/components/ControlPanel";
+import DetailsPanel from "@/components/DetailsPanel";
 import { Upload, FileText, Loader2 } from "lucide-react";
+
+const GraphVisualization = dynamic(() => import('@/components/GraphVisualization'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-900">Loading Graph...</div>
+});
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -12,6 +19,26 @@ export default function Home() {
   const [chatMessage, setChatMessage] = useState("");
   const [chatResponse, setChatResponse] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
+  const [layout, setLayout] = useState('cose');
+  const [filters, setFilters] = useState<FilterState | undefined>(undefined);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [selectedElement, setSelectedElement] = useState<any | null>(null);
+
+  const entityTypes = useMemo(() => {
+    const types = new Set<string>();
+    graphData.forEach(el => {
+      if (el.data.type) types.add(el.data.type);
+    });
+    return Array.from(types);
+  }, [graphData]);
+
+  const relationTypes = useMemo(() => {
+    const types = new Set<string>();
+    graphData.forEach(el => {
+      if (el.data.source && el.data.target && el.data.label) types.add(el.data.label);
+    });
+    return Array.from(types);
+  }, [graphData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -41,10 +68,12 @@ export default function Home() {
       const data = await res.json();
 
       // Transform data for Cytoscape
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const nodes = data.entities.map((e: any) => ({
         data: { id: e.name, label: e.name, type: e.type }
       }));
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const edges = data.relations.map((r: any, i: number) => ({
         data: {
           id: `e${i}`,
@@ -74,7 +103,7 @@ export default function Home() {
       });
       const data = await res.json();
       setChatResponse(data.response);
-    } catch (err) {
+    } catch {
       setChatResponse("Error getting answer.");
     } finally {
       setChatLoading(false);
@@ -123,7 +152,29 @@ export default function Home() {
         {graphData.length > 0 && (
           <div className="animate-in fade-in duration-700">
             <h2 className="text-2xl font-semibold mb-4">Knowledge Graph</h2>
-            <GraphVisualization elements={graphData} />
+
+            {/* Main Graph Container with Sidebar Layout */}
+            <div className="flex h-[700px] border border-gray-800 rounded-xl bg-gray-900/50 overflow-hidden relative">
+              <ControlPanel
+                entityTypes={entityTypes}
+                relationTypes={relationTypes}
+                onFilterChange={setFilters}
+                onLayoutChange={setLayout}
+              />
+
+              <div className="flex-1 relative h-full">
+                <GraphVisualization
+                  elements={graphData}
+                  filters={filters}
+                  layout={layout}
+                  onElementClick={setSelectedElement}
+                />
+                <DetailsPanel
+                  data={selectedElement}
+                  onClose={() => setSelectedElement(null)}
+                />
+              </div>
+            </div>
 
             <div className="mt-8 p-6 border border-gray-800 rounded-xl bg-gray-900/50">
               <h2 className="text-2xl font-semibold mb-4">Ask the Graph (RAG)</h2>

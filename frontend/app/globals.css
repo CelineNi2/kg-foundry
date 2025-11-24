@@ -24,3 +24,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Graph Styles */
+.highlighted {
+  z-index: 9999;
+}
+
+.dimmed {
+  opacity: 0.2;
+  z-index: 1;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Navigator Styles */
+.cytoscape-navigator {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  height: 150px;
+  width: 150px;
+  background: #1a1a1a;
+  z-index: 9999;
+  border-radius: 8px;
+  border: 1px solid #333;
+  overflow: hidden;
+}
+
+.cytoscape-navigator-view {
+  position: absolute;
+  background: rgba(59, 130, 246, 0.2);
+  /* Blue tint */
+  z-index: 9999;
+  cursor: move;
+  border: 1px solid #3b82f6;
+}
+
+.cytoscape-navigator-overlay {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
