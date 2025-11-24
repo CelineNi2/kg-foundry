@@ -53,6 +53,29 @@ class Neo4jClient:
             self.add_entity(entity)
         for relation in relations:
             self.add_relation(relation)
+    
+    def get_all_graph(self):
+        """Get all entities and relations from the graph."""
+        with self.driver.session() as session:
+            # Get all entities
+            entities_result = session.run(
+                "MATCH (e:Entity) RETURN e.name AS name, e.type AS type, e.description AS description"
+            )
+            entities = [
+                {"name": r["name"], "type": r["type"], "description": r["description"]} 
+                for r in entities_result
+            ]
+            
+            # Get all relations
+            relations_result = session.run(
+                "MATCH (s:Entity)-[r:RELATION]->(t:Entity) RETURN s.name AS source, t.name AS target, r.type AS type, r.description AS description"
+            )
+            relations = [
+                {"source": r["source"], "target": r["target"], "type": r["type"], "description": r["description"]} 
+                for r in relations_result
+            ]
+            
+            return entities, relations
             
     def query(self, cypher: str, **parameters):
         """Run a raw Cypher query."""

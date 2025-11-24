@@ -148,6 +148,23 @@ async def get_job_status(job_id: str):
         "error": job["error"]
     }
 
+@router.get("/graph", response_model=GraphResponse)
+async def get_graph():
+    """
+    Retrieve the entire graph from Neo4j.
+    """
+    try:
+        client = Neo4jClient()
+        entities, relations = client.get_all_graph()
+        client.close()
+        
+        return {
+            "entities": entities,
+            "relations": relations
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/query")
 async def query_graph(request: QueryRequest):
     """

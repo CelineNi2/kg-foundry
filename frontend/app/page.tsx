@@ -124,6 +124,44 @@ export default function Home() {
     }
   };
 
+  const handleLoadFromDB = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("http://localhost:8000/graph");
+
+      if (!res.ok) {
+        throw new Error("Failed to load graph from database");
+      }
+
+      const data = await res.json();
+
+      // Transform data for Cytoscape
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodes = data.entities.map((e: any) => ({
+        data: { id: e.name, label: e.name, type: e.type }
+      }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const edges = data.relations.map((r: any, i: number) => ({
+        data: {
+          id: `e${i}`,
+          source: r.source,
+          target: r.target,
+          label: r.type
+        }
+      }));
+
+      setGraphData([...nodes, ...edges]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   const handleChat = async () => {
     if (!chatMessage) return;
     setChatLoading(true);
@@ -177,6 +215,15 @@ export default function Home() {
             >
               {loading ? <Loader2 className="animate-spin" /> : <FileText />}
               Process
+            </button>
+
+            <button
+              onClick={handleLoadFromDB}
+              disabled={loading}
+              className="ml-2 px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <FileText />}
+              Load from DB
             </button>
           </div>
 
