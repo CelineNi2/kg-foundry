@@ -46,16 +46,22 @@ export default function Home() {
     }
   };
 
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleUpload = async () => {
     if (!file) return;
 
     setLoading(true);
+    setIsProcessing(true);
+    setUploadProgress(0);
     setError(null);
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
+      // 1. Start Ingestion Job
       const res = await fetch("http://localhost:8000/ingest", {
         method: "POST",
         body: formData,
@@ -65,29 +71,56 @@ export default function Home() {
         throw new Error("Upload failed");
       }
 
-      const data = await res.json();
+      const { job_id } = await res.json();
 
-      // Transform data for Cytoscape
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nodes = data.entities.map((e: any) => ({
-        data: { id: e.name, label: e.name, type: e.type }
-      }));
+      // 2. Poll for Progress
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`http://localhost:8000/jobs/${job_id}`);
+          const statusData = await statusRes.json();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const edges = data.relations.map((r: any, i: number) => ({
-        data: {
-          id: `e${i}`,
-          source: r.source,
-          target: r.target,
-          label: r.type
+          if (statusData.status === "processing") {
+            setUploadProgress(statusData.progress);
+          } else if (statusData.status === "completed") {
+            clearInterval(pollInterval);
+            setUploadProgress(100);
+
+            // Transform data for Cytoscape
+            const data = statusData.result;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const nodes = data.entities.map((e: any) => ({
+              data: { id: e.name, label: e.name, type: e.type }
+            }));
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const edges = data.relations.map((r: any, i: number) => ({
+              data: {
+                id: `e${i}`,
+                source: r.source,
+                target: r.target,
+                label: r.type
+              }
+            }));
+
+            setGraphData([...nodes, ...edges]);
+            setLoading(false);
+            setIsProcessing(false);
+          } else if (statusData.status === "failed") {
+            clearInterval(pollInterval);
+            throw new Error(statusData.error || "Processing failed");
+          }
+        } catch (err) {
+          clearInterval(pollInterval);
+          setError(err instanceof Error ? err.message : "Polling error");
+          setLoading(false);
+          setIsProcessing(false);
         }
-      }));
+      }, 1000);
 
-      setGraphData([...nodes, ...edges]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
       setLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -111,13 +144,13 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-24 bg-black text-white">
-      <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">
+    <main className="flex h-screen flex-col items-center p-8 bg-black text-white overflow-hidden">
+      <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text shrink-0">
         kg-foundry
       </h1>
 
-      <div className="w-full max-w-4xl">
-        <div className="mb-8 p-6 border border-gray-800 rounded-xl bg-gray-900/50">
+      <div className="w-full max-w-7xl flex-1 flex flex-col overflow-hidden">
+        <div className="mb-4 p-4 border border-gray-800 rounded-xl bg-gray-900/50 shrink-0">
           <div className="flex items-center gap-4">
             <input
               type="file"
@@ -146,15 +179,32 @@ export default function Home() {
               Process
             </button>
           </div>
+
+          {/* Progress Bar */}
+          {isProcessing && (
+            <div className="mt-4">
+              <div className="flex justify-between text-sm text-gray-400 mb-1">
+                <span>Processing...</span>
+                <span>{Math.round(uploadProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2.5">
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
           {error && <p className="mt-4 text-red-500">{error}</p>}
         </div>
 
         {graphData.length > 0 && (
-          <div className="animate-in fade-in duration-700">
-            <h2 className="text-2xl font-semibold mb-4">Knowledge Graph</h2>
+          <div className="animate-in fade-in duration-700 flex-1 flex flex-col overflow-hidden">
+            <h2 className="text-2xl font-semibold mb-4 shrink-0">Knowledge Graph</h2>
 
             {/* Main Graph Container with Sidebar Layout */}
-            <div className="flex h-[700px] border border-gray-800 rounded-xl bg-gray-900/50 overflow-hidden relative">
+            <div className="flex flex-1 border border-gray-800 rounded-xl bg-gray-900/50 overflow-hidden relative min-h-0">
               <ControlPanel
                 entityTypes={entityTypes}
                 relationTypes={relationTypes}
@@ -176,8 +226,8 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-8 p-6 border border-gray-800 rounded-xl bg-gray-900/50">
-              <h2 className="text-2xl font-semibold mb-4">Ask the Graph (RAG)</h2>
+            <div className="mt-4 p-4 border border-gray-800 rounded-xl bg-gray-900/50 shrink-0">
+              <h2 className="text-xl font-semibold mb-3">Ask the Graph (RAG)</h2>
               <div className="flex gap-4">
                 <input
                   type="text"
@@ -196,8 +246,8 @@ export default function Home() {
                 </button>
               </div>
               {chatResponse && (
-                <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
-                  <p className="text-gray-300">{chatResponse}</p>
+                <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-700 max-h-32 overflow-y-auto">
+                  <p className="text-gray-300 text-sm">{chatResponse}</p>
                 </div>
               )}
             </div>
