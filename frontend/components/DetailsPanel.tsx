@@ -13,7 +13,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ data, onClose }) => {
     const isNode = data.source === undefined && data.target === undefined;
 
     return (
-        <div className="absolute top-4 right-4 bg-gray-800 p-6 rounded-lg border border-gray-700 text-white z-50 w-80 max-h-[80vh] overflow-y-auto shadow-xl animate-in slide-in-from-right duration-300">
+        <div className="absolute top-4 right-4 bg-gray-800/90 backdrop-blur-md p-4 rounded-lg border border-gray-700/50 text-white z-50 w-72 max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-300">
             <div className="flex justify-between items-start mb-4">
                 <h3 className="font-bold text-lg text-blue-400">
                     {isNode ? 'Entity Details' : 'Relation Details'}
