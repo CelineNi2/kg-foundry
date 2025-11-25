@@ -21,14 +21,21 @@ interface GraphProps {
     layout?: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onElementClick?: (data: any) => void;
+    focusedNodeId?: string | null;
+    onFocusReset?: () => void;
 }
 
-const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 'cose', onElementClick }) => {
+const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 'cose', onElementClick, focusedNodeId, onFocusReset }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const cyRef = useRef<cytoscape.Core | null>(null);
+    const navigatorRef = useRef<any>(null);
+    const contextMenuRef = useRef<any>(null);
+    const isDestroyedRef = useRef(false);
+    const layoutRef = useRef<any>(null);
 
     useEffect(() => {
         if (containerRef.current) {
+            isDestroyedRef.current = false;
             const cy = cytoscape({
                 container: containerRef.current,
                 elements: elements,
@@ -116,67 +123,68 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             cyRef.current = cy;
 
             // Initialize expand-collapse
-            // @ts-expect-error - extension method
-            const api = cy.expandCollapse({
-                layoutBy: {
-                    name: "cose",
-                    animate: true,
-                    randomize: false,
-                    fit: true
-                },
-                fisheye: false,
-                animate: true,
-                undoable: false
-            });
+            // DISABLED: Suspected cause of persistent errors
+            // const api = cy.expandCollapse({
+            //     layoutBy: {
+            //         name: "cose",
+            //         animate: true,
+            //         randomize: false,
+            //         fit: true
+            //     },
+            //     fisheye: false,
+            //     animate: true,
+            //     undoable: false
+            // });
 
             // Initialize context menus
-            // @ts-expect-error - extension method
-            cy.contextMenus({
-                menuItems: [
-                    {
-                        id: 'expand',
-                        content: 'Expand',
-                        tooltipText: 'Expand',
-                        selector: 'node.cy-expand-collapse-collapsed-node',
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        onClickFunction: function (event: any) {
-                            api.expand(event.target);
-                        },
-                        hasTrailingDivider: true
-                    },
-                    {
-                        id: 'collapse',
-                        content: 'Collapse',
-                        tooltipText: 'Collapse',
-                        selector: 'node:not(.cy-expand-collapse-collapsed-node)',
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        onClickFunction: function (event: any) {
-                            api.collapse(event.target);
-                        },
-                        hasTrailingDivider: true
-                    }
-                ]
-            });
+            // DISABLED: Suspected cause of persistent errors
+            // cy.contextMenus({
+            //     menuItems: [
+            //         {
+            //             id: 'expand',
+            //             content: 'Expand',
+            //             tooltipText: 'Expand',
+            //             selector: 'node.cy-expand-collapse-collapsed-node',
+            //             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            //             onClickFunction: function (event: any) {
+            //                 api.expand(event.target);
+            //             },
+            //             hasTrailingDivider: true
+            //         },
+            //         {
+            //             id: 'collapse',
+            //             content: 'Collapse',
+            //             tooltipText: 'Collapse',
+            //             selector: 'node:not(.cy-expand-collapse-collapsed-node)',
+            //             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            //             onClickFunction: function (event: any) {
+            //                 api.collapse(event.target);
+            //             },
+            //             hasTrailingDivider: true
+            //         }
+            //     ]
+            // });
 
             // Initialize navigator
-            // @ts-expect-error - extension method
-            cy.navigator({
-                container: false, // can be a HTML or jQuery element or jQuery selector
-                viewLiveFramerate: 0, // set to 0 to update graph sooner; set to >0 to update graph less frequently
-                thumbnailEventFramerate: 30, // max thumbnail's updates per second triggered by graph updates
-                thumbnailLiveFramerate: false, // max thumbnail's updates per second. Set to false to disable
-                dblClickDelay: 200, // milliseconds
-                removeCustomContainer: true, // destroy the container specified by user on plugin destroy
-                rerenderDelay: 100 // ms to throttle rerender updates to the panzoom for performance
-            });
+            // DISABLED: Navigator plugin causes persistent null reference errors
+            // const nav = cy.navigator({
+            //     container: false,
+            //     viewLiveFramerate: 0,
+            //     thumbnailEventFramerate: 30,
+            //     thumbnailLiveFramerate: false,
+            //     dblClickDelay: 200,
+            //     removeCustomContainer: true,
+            //     rerenderDelay: 100
+            // });
+            // navigatorRef.current = nav;
 
             // Event listeners for highlighting
             cy.on('tap', 'node', (evt) => {
+                if (isDestroyedRef.current) return;
                 const node = evt.target;
-                const neighborhood = node.neighborhood().add(node);
 
-                cy.elements().addClass('dimmed');
-                neighborhood.removeClass('dimmed').addClass('highlighted');
+                // Highlighting and layout is now handled by the focusedNodeId effect
+                // which is triggered by onElementClick -> setFocusedNodeId in parent
 
                 if (onElementClick) {
                     onElementClick(node.data());
@@ -184,6 +192,7 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             });
 
             cy.on('tap', 'edge', (evt) => {
+                if (isDestroyedRef.current) return;
                 const edge = evt.target;
 
                 cy.elements().addClass('dimmed');
@@ -197,8 +206,17 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             });
 
             cy.on('tap', (evt) => {
+                if (isDestroyedRef.current) return;
                 if (evt.target === cy) {
+                    // Stop any ongoing animations
+                    cy.stop(true, true);
+
                     cy.elements().removeClass('dimmed highlighted');
+                    // Zoom out to fit entire graph
+                    cy.fit(undefined, 30);
+                    if (onFocusReset) {
+                        onFocusReset();
+                    }
                     if (onElementClick) {
                         onElementClick(null);
                     }
@@ -206,8 +224,34 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             });
 
             return () => {
-                cy.destroy();
+                isDestroyedRef.current = true;
+
+                // Stop all animations first
+                if (cy && !cy.destroyed()) {
+                    cy.stop(true, true);
+
+                    // Remove all event listeners
+                    cy.removeAllListeners();
+
+                    // Destroy navigator explicitly
+                    if (navigatorRef.current && typeof navigatorRef.current.destroy === 'function') {
+                        try {
+                            navigatorRef.current.destroy();
+                        } catch (e) {
+                            console.warn('Navigator cleanup warning:', e);
+                        }
+                    }
+
+                    // Destroy cytoscape instance
+                    try {
+                        cy.destroy();
+                    } catch (e) {
+                        console.warn('Cytoscape cleanup warning:', e);
+                    }
+                }
+
                 cyRef.current = null;
+                navigatorRef.current = null;
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,50 +259,118 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
 
     // Apply Layout Changes
     useEffect(() => {
-        if (cyRef.current && layout) {
+        if (cyRef.current && layout && !isDestroyedRef.current) {
             const cy = cyRef.current;
-            cy.layout({
-                name: layout,
-                animate: true,
-                fit: true
-            } as any).run();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if (!cy.destroyed() && !(cy as any).headless()) {
+                cy.layout({
+                    name: layout,
+                    animate: true,
+                    fit: true
+                } as any).run();
+            }
         }
     }, [layout]);
 
     // Apply Filters
     useEffect(() => {
-        if (cyRef.current && filters) {
+        if (cyRef.current && filters && !isDestroyedRef.current) {
             const cy = cyRef.current;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if (!cy.destroyed() && !(cy as any).headless()) {
+                cy.batch(() => {
+                    // Reset visibility
+                    cy.elements().removeClass('hidden');
 
-            cy.batch(() => {
-                // Reset visibility
-                cy.elements().removeClass('hidden');
+                    // Filter by Entity Type
+                    Object.entries(filters.entityTypes).forEach(([type, isVisible]) => {
+                        if (!isVisible) {
+                            cy.nodes(`[type = "${type}"]`).addClass('hidden');
+                        }
+                    });
 
-                // Filter by Entity Type
-                Object.entries(filters.entityTypes).forEach(([type, isVisible]) => {
-                    if (!isVisible) {
-                        cy.nodes(`[type = "${type}"]`).addClass('hidden');
+                    // Filter by Relation Type
+                    Object.entries(filters.relationTypes).forEach(([type, isVisible]) => {
+                        if (!isVisible) {
+                            cy.edges(`[label = "${type}"]`).addClass('hidden');
+                        }
+                    });
+
+                    // Filter by Confidence
+                    if (filters.minConfidence > 0) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        cy.elements().filter((ele: any) => {
+                            const confidence = ele.data('confidence');
+                            return confidence !== undefined && confidence < filters.minConfidence;
+                        }).addClass('hidden');
                     }
                 });
-
-                // Filter by Relation Type
-                Object.entries(filters.relationTypes).forEach(([type, isVisible]) => {
-                    if (!isVisible) {
-                        cy.edges(`[label = "${type}"]`).addClass('hidden');
-                    }
-                });
-
-                // Filter by Confidence
-                if (filters.minConfidence > 0) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    cy.elements().filter((ele: any) => {
-                        const confidence = ele.data('confidence');
-                        return confidence !== undefined && confidence < filters.minConfidence;
-                    }).addClass('hidden');
-                }
-            });
+            }
         }
     }, [filters]);
+
+    // Handle focused node (from search)
+    useEffect(() => {
+        if (cyRef.current && focusedNodeId && !isDestroyedRef.current) {
+            const cy = cyRef.current;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if (!cy.destroyed() && !(cy as any).headless()) {
+                const focusedNode = cy.getElementById(focusedNodeId);
+
+                if (focusedNode.length > 0) {
+                    // Stop any previous animations/layouts
+                    if (layoutRef.current) {
+                        layoutRef.current.stop();
+                        layoutRef.current = null;
+                    }
+                    cy.stop(true, false); // Stop animations, don't jump to end
+
+                    // Get neighborhood
+                    const neighborhood = focusedNode.neighborhood().add(focusedNode);
+
+                    // Dim everything, highlight neighborhood
+                    cy.elements().addClass('dimmed');
+                    neighborhood.removeClass('dimmed').addClass('highlighted');
+
+                    // Apply radial layout to neighborhood only
+                    const layout = neighborhood.layout({
+                        name: 'concentric',
+                        animate: true,
+                        animationDuration: 500,
+                        fit: false,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        concentric: (node: any) => node.id() === focusedNodeId ? 100 : 1,
+                        levelWidth: () => 1,
+                        minNodeSpacing: 100,
+                        startAngle: 0,
+                        sweep: 2 * Math.PI,
+                        clockwise: true,
+                        equidistant: false,
+                        padding: 30
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    } as any);
+
+                    layoutRef.current = layout;
+
+                    // Wait for layout to settle, then zoom to focused node
+                    layout.one('layoutstop', () => {
+                        layoutRef.current = null;
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        if (!isDestroyedRef.current && !cy.destroyed() && !(cy as any).headless()) {
+                            cy.animate({
+                                zoom: 1.5,
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                center: { eles: focusedNode } as any,
+                                duration: 500
+                            });
+                        }
+                    });
+
+                    layout.run();
+                }
+            }
+        }
+    }, [focusedNodeId]);
 
     return <div ref={containerRef} className="w-full h-full bg-gray-900" />;
 };

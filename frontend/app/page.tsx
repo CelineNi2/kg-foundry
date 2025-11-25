@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import dynamic from 'next/dynamic';
 import ControlPanel, { FilterState } from "@/components/ControlPanel";
 import DetailsPanel from "@/components/DetailsPanel";
+import SearchPanel from "@/components/SearchPanel";
 import { Upload, FileText, Loader2 } from "lucide-react";
 
 const GraphVisualization = dynamic(() => import('@/components/GraphVisualization'), {
@@ -23,6 +24,7 @@ export default function Home() {
   const [filters, setFilters] = useState<FilterState | undefined>(undefined);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedElement, setSelectedElement] = useState<any | null>(null);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
   const entityTypes = useMemo(() => {
     const types = new Set<string>();
@@ -182,12 +184,12 @@ export default function Home() {
   };
 
   return (
-    <main className="flex h-screen flex-col items-center p-8 bg-black text-white overflow-hidden">
+    <main className="flex h-screen flex-col items-center p-2 bg-black text-white overflow-hidden">
       <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text shrink-0">
         kg-foundry
       </h1>
 
-      <div className="w-full max-w-7xl flex-1 flex flex-col overflow-hidden">
+      <div className="w-full flex-1 flex flex-col overflow-hidden">
         <div className="mb-4 p-4 border border-gray-800 rounded-xl bg-gray-900/50 shrink-0">
           <div className="flex items-center gap-4">
             <input
@@ -260,11 +262,23 @@ export default function Home() {
               />
 
               <div className="flex-1 relative h-full">
+                <SearchPanel
+                  nodes={graphData.filter(el => !el.data.source && !el.data.target)}
+                  onNodeSelect={(nodeId) => setFocusedNodeId(nodeId)}
+                />
                 <GraphVisualization
                   elements={graphData}
                   filters={filters}
                   layout={layout}
-                  onElementClick={setSelectedElement}
+                  onElementClick={(element) => {
+                    setSelectedElement(element);
+                    // If it's a node (has id but no source/target), set it as focused
+                    if (element && !element.source && !element.target) {
+                      setFocusedNodeId(element.id);
+                    }
+                  }}
+                  focusedNodeId={focusedNodeId}
+                  onFocusReset={() => setFocusedNodeId(null)}
                 />
                 <DetailsPanel
                   data={selectedElement}
