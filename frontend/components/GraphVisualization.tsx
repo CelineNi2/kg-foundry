@@ -31,7 +31,15 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
     const navigatorRef = useRef<any>(null);
     const contextMenuRef = useRef<any>(null);
     const isDestroyedRef = useRef(false);
-    const layoutRef = useRef<any>(null);
+
+    const onElementClickRef = useRef(onElementClick);
+    const onFocusResetRef = useRef(onFocusReset);
+
+    // Update refs when props change
+    useEffect(() => {
+        onElementClickRef.current = onElementClick;
+        onFocusResetRef.current = onFocusReset;
+    }, [onElementClick, onFocusReset]);
 
     useEffect(() => {
         if (containerRef.current) {
@@ -82,11 +90,20 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                         }
                     },
                     {
-                        selector: '.dimmed',
+                        selector: 'node.dimmed',
                         style: {
                             'opacity': 0.2,
                             'label': '',
                             'transition-property': 'opacity',
+                            'transition-duration': 300
+                        }
+                    },
+                    {
+                        selector: 'edge.dimmed',
+                        style: {
+                            'opacity': 0.3,
+                            'text-opacity': 0.5,
+                            'transition-property': 'opacity, text-opacity',
                             'transition-duration': 300
                         }
                     },
@@ -186,8 +203,8 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                 // Highlighting and layout is now handled by the focusedNodeId effect
                 // which is triggered by onElementClick -> setFocusedNodeId in parent
 
-                if (onElementClick) {
-                    onElementClick(node.data());
+                if (onElementClickRef.current) {
+                    onElementClickRef.current(node.data());
                 }
             });
 
@@ -200,8 +217,8 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                 edge.source().addClass('highlighted');
                 edge.target().addClass('highlighted');
 
-                if (onElementClick) {
-                    onElementClick(edge.data());
+                if (onElementClickRef.current) {
+                    onElementClickRef.current(edge.data());
                 }
             });
 
@@ -209,16 +226,24 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                 if (isDestroyedRef.current) return;
                 if (evt.target === cy) {
                     // Stop any ongoing animations
-                    cy.stop(true, true);
+                    cy.stop(); // Don't jump to end, just stop
 
                     cy.elements().removeClass('dimmed highlighted');
-                    // Zoom out to fit entire graph
-                    cy.fit(undefined, 30);
-                    if (onFocusReset) {
-                        onFocusReset();
+
+                    // Re-run the global layout to restore structure and fit
+                    const currentLayout = layout || 'cose';
+                    cy.layout({
+                        name: currentLayout,
+                        animate: true,
+                        fit: true,
+                        padding: 30
+                    } as any).run();
+
+                    if (onFocusResetRef.current) {
+                        onFocusResetRef.current();
                     }
-                    if (onElementClick) {
-                        onElementClick(null);
+                    if (onElementClickRef.current) {
+                        onElementClickRef.current(null);
                     }
                 }
             });
@@ -255,7 +280,7 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [elements, onElementClick]);
+    }, [elements]);
 
     // Apply Layout Changes
     useEffect(() => {
@@ -318,12 +343,8 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                 const focusedNode = cy.getElementById(focusedNodeId);
 
                 if (focusedNode.length > 0) {
-                    // Stop any previous animations/layouts
-                    if (layoutRef.current) {
-                        layoutRef.current.stop();
-                        layoutRef.current = null;
-                    }
-                    cy.stop(true, false); // Stop animations, don't jump to end
+                    // Stop any ongoing animations
+                    cy.stop();
 
                     // Get neighborhood
                     const neighborhood = focusedNode.neighborhood().add(focusedNode);
@@ -332,41 +353,15 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                     cy.elements().addClass('dimmed');
                     neighborhood.removeClass('dimmed').addClass('highlighted');
 
-                    // Apply radial layout to neighborhood only
-                    const layout = neighborhood.layout({
-                        name: 'concentric',
-                        animate: true,
-                        animationDuration: 500,
-                        fit: false,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        concentric: (node: any) => node.id() === focusedNodeId ? 100 : 1,
-                        levelWidth: () => 1,
-                        minNodeSpacing: 100,
-                        startAngle: 0,
-                        sweep: 2 * Math.PI,
-                        clockwise: true,
-                        equidistant: false,
-                        padding: 30
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    } as any);
-
-                    layoutRef.current = layout;
-
-                    // Wait for layout to settle, then zoom to focused node
-                    layout.one('layoutstop', () => {
-                        layoutRef.current = null;
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        if (!isDestroyedRef.current && !cy.destroyed() && !(cy as any).headless()) {
-                            cy.animate({
-                                zoom: 1.5,
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                center: { eles: focusedNode } as any,
-                                duration: 500
-                            });
-                        }
+                    // Simply zoom to the neighborhood without changing layout
+                    cy.animate({
+                        fit: {
+                            eles: neighborhood,
+                            padding: 50
+                        },
+                        duration: 500,
+                        easing: 'ease-in-out-cubic'
                     });
-
-                    layout.run();
                 }
             }
         }
