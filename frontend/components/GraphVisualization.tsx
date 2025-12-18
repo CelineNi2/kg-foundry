@@ -13,6 +13,7 @@ if (typeof window !== 'undefined') {
 }
 
 import { FilterState } from './ControlPanel';
+import { getEntityTypeColor } from '../utils/colors';
 
 interface GraphProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,6 +36,23 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
     const onElementClickRef = useRef(onElementClick);
     const onFocusResetRef = useRef(onFocusReset);
 
+    // Prepare elements with colors
+    const coloredElements = React.useMemo(() => {
+        return elements.map(el => {
+            if (el.group === 'nodes' || (!el.group && el.data && !el.data.source)) {
+                const color = getEntityTypeColor(el.data.type || 'UNKNOWN');
+                return {
+                    ...el,
+                    data: {
+                        ...el.data,
+                        color: color
+                    }
+                };
+            }
+            return el;
+        });
+    }, [elements]);
+
     // Update refs when props change
     useEffect(() => {
         onElementClickRef.current = onElementClick;
@@ -46,12 +64,12 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             isDestroyedRef.current = false;
             const cy = cytoscape({
                 container: containerRef.current,
-                elements: elements,
+                elements: coloredElements,
                 style: [
                     {
                         selector: 'node',
                         style: {
-                            'background-color': '#666',
+                            'background-color': 'data(color)',
                             'label': 'data(label)',
                             'color': '#fff',
                             'text-valign': 'center',
@@ -80,12 +98,20 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
                         }
                     },
                     {
-                        selector: '.highlighted',
+                        selector: 'node.highlighted',
                         style: {
-                            'background-color': '#3b82f6',
+                            'border-width': 4,
+                            'border-color': '#ffffff',
+                            'transition-property': 'border-width, border-color',
+                            'transition-duration': 300
+                        }
+                    },
+                    {
+                        selector: 'edge.highlighted',
+                        style: {
                             'line-color': '#3b82f6',
                             'target-arrow-color': '#3b82f6',
-                            'transition-property': 'background-color, line-color, target-arrow-color',
+                            'transition-property': 'line-color, target-arrow-color',
                             'transition-duration': 300
                         }
                     },
@@ -280,7 +306,7 @@ const GraphVisualization: React.FC<GraphProps> = ({ elements, filters, layout = 
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [elements]);
+    }, [coloredElements]);
 
     // Apply Layout Changes
     useEffect(() => {

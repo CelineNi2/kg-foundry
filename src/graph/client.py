@@ -24,26 +24,30 @@ class Neo4jClient:
     def add_entity(self, entity: Entity):
         """Add a single entity to the graph."""
         with self.driver.session() as session:
-            session.run(
-                """
-                MERGE (e:Entity {name: $name})
-                SET e.type = $type, e.description = $description
-                """,
-                name=entity.name, type=entity.type, description=entity.description
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MERGE (e:Entity {name: $name})
+                    SET e.type = $type, e.description = $description
+                    """,
+                    name=entity.name, type=entity.type, description=entity.description
+                ).consume()
             )
 
     def add_relation(self, relation: Relation):
         """Add a relationship between two entities."""
         with self.driver.session() as session:
-            session.run(
-                """
-                MATCH (s:Entity {name: $source})
-                MATCH (t:Entity {name: $target})
-                MERGE (s)-[r:RELATION {type: $type}]->(t)
-                SET r.description = $description
-                """,
-                source=relation.source, target=relation.target, 
-                type=relation.type, description=relation.description
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MATCH (s:Entity {name: $source})
+                    MATCH (t:Entity {name: $target})
+                    MERGE (s)-[r:RELATION {type: $type}]->(t)
+                    SET r.description = $description
+                    """,
+                    source=relation.source, target=relation.target, 
+                    type=relation.type, description=relation.description
+                ).consume()
             )
 
     def add_graph(self, entities: List[Entity], relations: List[Relation]):
@@ -77,6 +81,11 @@ class Neo4jClient:
             
             return entities, relations
             
+    def clear_database(self):
+        """Clear the entire database."""
+        with self.driver.session() as session:
+            session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n").consume())
+
     def query(self, cypher: str, **parameters):
         """Run a raw Cypher query."""
         with self.driver.session() as session:

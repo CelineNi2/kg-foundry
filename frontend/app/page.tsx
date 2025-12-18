@@ -259,6 +259,7 @@ export default function Home() {
                 relationTypes={relationTypes}
                 onFilterChange={setFilters}
                 onLayoutChange={setLayout}
+                onClearDB={() => setGraphData([])}
               />
 
               <div className="flex-1 relative h-full">

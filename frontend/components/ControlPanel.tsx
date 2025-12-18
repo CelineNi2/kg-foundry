@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+import { getEntityTypeColor } from '../utils/colors';
+
 export interface FilterState {
     entityTypes: Record<string, boolean>;
     relationTypes: Record<string, boolean>;
@@ -12,10 +14,12 @@ interface ControlPanelProps {
     relationTypes: string[];
     onFilterChange: (filters: FilterState) => void;
     onLayoutChange: (layout: string) => void;
+    onClearDB?: () => void;
 }
 
-const ControlPanel: React.FC<ControlPanelProps> = ({ entityTypes, relationTypes, onFilterChange, onLayoutChange }) => {
+const ControlPanel: React.FC<ControlPanelProps> = ({ entityTypes, relationTypes, onFilterChange, onLayoutChange, onClearDB }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isClearing, setIsClearing] = useState(false);
     const [filters, setFilters] = useState<FilterState>({
         entityTypes: entityTypes.reduce((acc, type) => ({ ...acc, [type]: true }), {}),
         relationTypes: relationTypes.reduce((acc, type) => ({ ...acc, [type]: true }), {}),
@@ -82,6 +86,27 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ entityTypes, relationTypes,
         onFilterChange(newFilters);
     };
 
+    const handleClearDB = async () => {
+        if (window.confirm("Are you sure you want to erase the entire database? This action cannot be undone.")) {
+            setIsClearing(true);
+            try {
+                const res = await fetch("http://localhost:8000/clear", {
+                    method: "POST"
+                });
+                if (res.ok) {
+                    if (onClearDB) onClearDB();
+                } else {
+                    alert("Failed to clear database");
+                }
+            } catch (error) {
+                console.error("Error clearing database:", error);
+                alert("Error clearing database");
+            } finally {
+                setIsClearing(false);
+            }
+        }
+    };
+
     return (
         <div className={`bg-gray-800 border-r border-gray-700 text-white h-full shrink-0 transition-all duration-300 relative flex flex-col ${isCollapsed ? 'w-12' : 'w-64'}`}>
             {/* Fixed Header with Toggle Button */}
@@ -141,12 +166,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ entityTypes, relationTypes,
                                     onChange={() => handleEntityTypeChange(type)}
                                     className="mr-2"
                                 />
+                                <span
+                                    className="w-3 h-3 rounded-full mr-2 shrink-0"
+                                    style={{ backgroundColor: getEntityTypeColor(type) }}
+                                />
                                 <span className="text-sm">{type}</span>
                             </div>
                         ))}
                     </div>
 
-                    <div>
+                    <div className="mb-6">
                         <div className="flex justify-between items-center mb-2">
                             <h4 className="text-sm font-semibold text-gray-400">Relation Types</h4>
                             <button
@@ -168,6 +197,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ entityTypes, relationTypes,
                             </div>
                         ))}
                     </div>
+
+                </div>
+            )}
+
+            {/* Fixed Footer for Erase DB Button */}
+            {!isCollapsed && (
+                <div className="p-4 border-t border-gray-700 bg-gray-800 shrink-0">
+                    <button
+                        onClick={handleClearDB}
+                        disabled={isClearing}
+                        className="w-full py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-semibold transition-colors disabled:opacity-50"
+                    >
+                        {isClearing ? "Clearing..." : "Erase DB"}
+                    </button>
                 </div>
             )}
         </div>

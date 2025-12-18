@@ -165,6 +165,19 @@ async def get_graph():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/clear")
+async def clear_graph():
+    """
+    Clear the entire graph from Neo4j.
+    """
+    try:
+        client = Neo4jClient()
+        client.clear_database()
+        client.close()
+        return {"message": "Graph cleared successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/query")
 async def query_graph(request: QueryRequest):
     """
